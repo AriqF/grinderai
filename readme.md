@@ -30,7 +30,7 @@ Selain berperan sebagai asisten produktivitas, bot ini juga dapat menjadi teman 
 
 ---
 
-## 🚀 Tech Stack (Suggested):
+## 🚀 Tech Stack:
 - **Platform**: Telegram Bot API  
 - **Backend**: Python FastAPI
 - **AI/NLP**: OpenAI API 

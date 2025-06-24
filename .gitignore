@@ -1,2 +1,31 @@
-.venv
+# Bytecode dan cache Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environment virtual (jika lokal)
+venv/
 .env
+.env.*
+
+# Output dan file sementara
+*.log
+*.sqlite3
+*.db
+*.tmp
+*.bak
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+
+# Mac & Linux
+.DS_Store
+Thumbs.db
+
+# Optional: coverage/testing
+htmlcov/
+.coverage
+.pytest_cache/

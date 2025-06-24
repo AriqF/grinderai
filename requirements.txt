@@ -23,6 +23,7 @@ Pygments==2.19.1
 pymongo==4.13.2
 python-dotenv==1.1.0
 python-multipart==0.0.20
+python-telegram-bot==22.1
 PyYAML==6.0.2
 rich==14.0.0
 rich-toolkit==0.14.7

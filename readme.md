@@ -46,7 +46,7 @@ MIT License
 ## Running FastAPI
 1. Windows: 
    - source .venv/Scripts/activate (bash) or .venv/Scripts/Activate.ps1  (powershell)
-   - uvicorn app.main:main --reload
+   - uvicorn app.main:app --reload
 2. MacOS
    - .venv/Scripts/activate 
    - uvicorn app.main:main --reload

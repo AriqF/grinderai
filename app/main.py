@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 import os
 
-from app.db.mongo import get_database
+from app.db.mongo import connect_to_mongo
 from app.routers import user_router
 from app.utils.bot_handler import configure_bot
 from contextlib import asynccontextmanager
@@ -18,6 +18,7 @@ app.include_router(user_router.router, prefix="/users", tags=["Users"])
 
 @app.on_event("startup")
 async def startup_event():
+    await connect_to_mongo()
     await configure_bot()
 
 

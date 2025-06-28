@@ -1,0 +1,63 @@
+from typing import Optional
+from datetime import datetime
+
+from fastapi import HTTPException
+from app.schemas.user_schema import UserCreate
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from telegram import User
+
+
+class UserService:
+    def __init__(self, db: AsyncIOMotorDatabase):
+        self.collection = db["users"]
+
+    async def check_and_create(self, user):
+        try:
+            telegram_id = str(user.id)
+            is_exists = await self.check_user(telegram_id)
+
+            if is_exists:
+                return {"user": user, "new_created": False}
+
+            await self.create_user(
+                {
+                    "_id": telegram_id,
+                    "telegram_id": telegram_id,
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "language": user.language_code,
+                    "current_level": 1,
+                    "exp_points": 0,
+                    "created_at": datetime.utcnow(),
+                }
+            )
+
+            return {"user": user, "new_created": True}
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"check_and_create error: {str(e)}"
+            )
+
+    async def check_user(self, telegram_id: str) -> bool:
+        try:
+            user = await self.collection.find_one({"_id": telegram_id})
+            return user is not None
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"check_user error: {str(e)}")
+
+    async def create_user(self, user_data: dict):
+        try:
+            await self.collection.insert_one(user_data)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"create_user error: {str(e)}")
+
+    async def get_user_by_id(self, telegram_id: str) -> Optional[dict]:
+        return await self.collection.find_one({"_id": telegram_id})
+
+    async def update_goals(self, telegram_id: str, new_goals: list):
+        result = await self.collection.update_one(
+            {"_id": telegram_id}, {"$set": {"long_term_goals": new_goals}}
+        )
+        return result.modified_count > 0

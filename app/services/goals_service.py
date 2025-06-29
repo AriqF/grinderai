@@ -4,6 +4,7 @@ from app.schemas.user_schema import UserCreate
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import Optional, List
 from app.schemas.user_goals_schema import UserGoal, UserDailyTask, UserLongTermGoal
+from app.schemas.user_daily_progres_schema import UserDailyProgress, UserTaskProgress
 from datetime import datetime, timezone
 import uuid
 import json
@@ -16,7 +17,7 @@ class UserGoalService:
         self.progress_collection = db["daily_progress"]
         self.telegram_id = telegram_id
 
-    async def load_goals(self) -> Optional[dict]:
+    async def load_goals(self):
         try:
             doc_goals = await self.goal_collection.find_one({"_id": self.telegram_id})
             if not doc_goals:
@@ -204,6 +205,7 @@ class UserGoalService:
         except Exception as e:
             return f"Error on retrieving goals {str(e)}"
 
+    # TODO change into find task then update the completed (not append it)
     async def add_progress(self, progress: UserTaskProgress) -> bool:
         try:
             curr_date = get_current_time("Asia/Jakarta").strftime("%Y-%m-%d")
@@ -227,3 +229,54 @@ class UserGoalService:
             raise e
 
     # TODO: add function to create a UserDailyProgress and Cron Job at 00:00 to update last progress and create today's progress
+
+    async def create_user_daily_progress(self):
+        try:
+            now = get_current_time("Asia/Jakarta")
+            curr_date = now.strftime("%Y-%m-%d")
+
+            goals = await self.load_goals()
+            if not goals:
+                return None
+
+            # create daily tasks
+            if not goals.daily_tasks:
+                return None
+
+            # check duplicate for current date:
+            find_dup = await self.progress_collection.find_one(
+                {"date": curr_date, "telegram_id": self.telegram_id}
+            )
+            if find_dup:
+                raise ValueError("DUPLICATE_ENTRY")
+
+            tasks: List[UserTaskProgress] = []
+            for task in goals.daily_tasks:
+                tasks.append(
+                    UserTaskProgress(
+                        task_id=task.id,
+                        title=task.title,
+                        completed=False,
+                        completed_at=None,
+                        skip_reason=None,
+                        obstacles=None,
+                        notes=None,
+                    )
+                )
+
+            data = UserDailyProgress(
+                _id=str(uuid.uuid4()),
+                telegram_id=self.telegram_id,
+                date=curr_date,
+                tasks=tasks,
+                overall_day_rating=None,
+                mood_after_tasks=None,
+                created_at=now,
+                updated_at=now,
+            )
+            print(data.model_dump())
+            await self.progress_collection.insert_one(data.model_dump())
+            return "OK"
+        except Exception as e:
+            print(e)
+            raise e

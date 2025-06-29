@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 from fastapi import HTTPException
-from app.schemas.user_schema import UserCreate
+from app.schemas.user_schema import UserCreate, UserOut, UserBasicInfo
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from telegram import User
 
@@ -54,10 +54,21 @@ class UserService:
             raise HTTPException(status_code=500, detail=f"create_user error: {str(e)}")
 
     async def get_user_by_id(self, telegram_id: str) -> Optional[dict]:
-        return await self.collection.find_one({"_id": telegram_id})
+        doc = await self.collection.find_one({"_id": telegram_id})
+        if not doc:
+            return None
+        return UserBasicInfo(**doc).model_dump(by_alias=True)
 
     async def update_goals(self, telegram_id: str, new_goals: list):
         result = await self.collection.update_one(
             {"_id": telegram_id}, {"$set": {"long_term_goals": new_goals}}
         )
         return result.modified_count > 0
+
+    async def find_all(self) -> List[UserOut]:
+        try:
+            users = await self.collection.find()
+            return []
+        except Exception as e:
+            print("ERROR ", e)
+            raise ValueError(e)

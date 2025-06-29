@@ -14,7 +14,7 @@ class UserTaskProgress(BaseModel):
 
 
 class UserDailyProgress(BaseModel):
-    id: str = Field(..., alias="_id")
+    # id: str = Field(..., alias="_id")
     telegram_id: str
     date: str
     tasks: Optional[List[UserTaskProgress]]
@@ -30,6 +30,16 @@ class UserDailyProgressCreate(BaseModel):
     tasks: Optional[List[UserTaskProgress]]
     overall_day_rating: Optional[int]
     mood_after_tasks: Optional[str]
+
+
+class UserTaskProgressExtended(BaseModel):
+    task_id: str
+    title: str
+    note: str
+    min_required_completion: int
+    completion_unit: str
+    completed: bool
+    completed_at: Optional[bool]
 
 
 class Config:

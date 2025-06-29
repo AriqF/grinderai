@@ -4,11 +4,16 @@ from app.schemas.user_schema import UserCreate
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import Optional, List
 from app.schemas.user_goals_schema import UserGoal, UserDailyTask, UserLongTermGoal
-from app.schemas.user_daily_progres_schema import UserDailyProgress, UserTaskProgress
+from app.schemas.user_daily_progres_schema import (
+    UserDailyProgress,
+    UserTaskProgress,
+    UserTaskProgressExtended,
+)
 from datetime import datetime, timezone
 import uuid
 import json
 from app.utils.util_func import get_current_time
+import asyncio
 
 
 class UserGoalService:
@@ -205,7 +210,6 @@ class UserGoalService:
         except Exception as e:
             return f"Error on retrieving goals {str(e)}"
 
-    # TODO change into find task then update the completed (not append it)
     async def add_progress(self, progress: UserTaskProgress) -> bool:
         try:
             curr_date = get_current_time("Asia/Jakarta").strftime("%Y-%m-%d")
@@ -229,6 +233,16 @@ class UserGoalService:
             raise e
 
     # TODO: add function to create a UserDailyProgress and Cron Job at 00:00 to update last progress and create today's progress
+
+    async def load_daily_tasks_list(self):
+        try:
+            doc = await self.goal_collection.find_one({"_id": self.telegram_id})
+            if not doc:
+                return None
+            dicted = UserGoal(**doc).model_dump()
+            return dicted["daily_tasks"]
+        except Exception as e:
+            raise ValueError(e)
 
     async def create_user_daily_progress(self):
         try:
@@ -265,7 +279,7 @@ class UserGoalService:
                 )
 
             data = UserDailyProgress(
-                _id=str(uuid.uuid4()),
+                # _id=str(uuid.uuid4()),
                 telegram_id=self.telegram_id,
                 date=curr_date,
                 tasks=tasks,
@@ -280,3 +294,72 @@ class UserGoalService:
         except Exception as e:
             print(e)
             raise e
+
+    async def load_progress_day_tasks(self):
+        try:
+            curr_date = curr_date = get_current_time("Asia/Jakarta").strftime(
+                "%Y-%m-%d"
+            )
+            result = await self.progress_collection.find_one(
+                {"telegram_id": self.telegram_id, "date": curr_date},
+            )
+            if not result:
+                return None
+            res_dict = UserDailyProgress(**result).model_dump()
+            return [task for task in res_dict["tasks"]]
+        except Exception as e:
+            raise ValueError(e)
+
+    async def convert_tasks_list_reminder(self):
+        try:
+            tasks_list, tasks_progress = await asyncio.gather(
+                self.load_daily_tasks_list(), self.load_progress_day_tasks()
+            )
+            print(tasks_list)
+            print(tasks_progress)
+            if not tasks_list or not tasks_progress:
+                raise ValueError("Tasks are empty")
+
+            tasks_lookup = {item["id"]: item for item in tasks_list}
+
+            extended: List[UserTaskProgressExtended] = []
+            for progress in tasks_progress:
+                task = tasks_lookup.get(progress["task_id"])
+                extended.append(
+                    UserTaskProgressExtended(
+                        task_id=task["id"],
+                        title=task["title"],
+                        note=task["note"],
+                        min_required_completion=task["min_required_completion"],
+                        completion_unit=task["completion_unit"],
+                        completed=progress["completed"],
+                        completed_at=progress["completed_at"],
+                    )
+                )
+            return [task.model_dump() for task in extended]
+        except Exception as e:
+            print(e)
+            raise ValueError(e)
+
+    async def update_daily_task(self, task_id: str, is_complete: bool):
+        """Update daily task via Telegram callback.\n\nTODO: return doc and improve UI by displaying completed/skipped task name"""
+        try:
+            now = get_current_time("Asia/Jakarta")
+            date = now.strftime("%Y-%m-%d")
+            await self.progress_collection.update_one(
+                {
+                    "telegram_id": self.telegram_id,
+                    "date": date,
+                    "tasks.task_id": task_id,
+                },
+                {
+                    "$set": {
+                        "tasks.$.completed": is_complete,
+                        "tasks.$.completed_at": now if is_complete else None,
+                        "updated_at": now,
+                    }
+                },
+            )
+            return "OK"
+        except Exception as e:
+            raise ValueError(e)

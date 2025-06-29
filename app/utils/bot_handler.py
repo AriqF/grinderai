@@ -7,8 +7,9 @@ from telegram.ext import (
     ContextTypes,
     MessageHandler,
     filters,
+    CallbackContext,
+    CallbackQueryHandler,
 )
-from telegram.ext import CallbackContext
 from telegram.ext._utils.types import BD
 from app.db.mongo import get_database
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -17,6 +18,8 @@ from app.services.user_service import UserService
 from app.db.mongo import get_database
 from app.services.llm_service import LLMService
 from app.services.mongo_memory import ChatMemory
+from app.services.goals_service import UserGoalService
+import asyncio
 
 load_dotenv()
 
@@ -57,8 +60,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(response)
 
 
+async def handle_task_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()  # Acknowledge the button click
+
+    data = query.data  # e.g. "complete:task123"
+    action, task_id = data.split(":")
+    db = await get_database()
+    goal_service = UserGoalService(db, str(update.effective_user.id))
+
+    if action == "complete":
+        await asyncio.gather(
+            query.edit_message_text("✅ Marked as *completed*!", parse_mode="Markdown"),
+            goal_service.update_daily_task(task_id, True),
+        )
+    elif action == "skip":
+        await asyncio.gather(
+            query.edit_message_text("⏭ Task *skipped*.", parse_mode="Markdown"),
+            goal_service.update_daily_task(task_id, False),
+        )
+    else:
+        await query.edit_message_text("⚠️ Unknown action.")
+
+
 app.add_handler(CommandHandler("start", start_command))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app.add_handler(CallbackQueryHandler(handle_task_callback))
 
 
 # Webhook endpoint

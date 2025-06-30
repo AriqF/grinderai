@@ -33,7 +33,7 @@ class SchedulerService:
                 first_message = (
                     f"👋 *Hi there {user["first_name"]}!*\n\n"
                     "Here are your daily tasks. Please confirm your progress by selecting the appropriate action below each task.\n\n"
-                    "_Note: These messages won’t appear in chat history once completed or skipped._"
+                    "_Note: These reminder won’t appear in Rune chat history_"
                 )
                 await bot.send_message(
                     chat_id=int(tg_id),

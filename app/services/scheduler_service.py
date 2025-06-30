@@ -42,12 +42,6 @@ class SchedulerService:
                 )
                 # Send each task with 0.5s delay
                 for i, task in enumerate(tasks, 1):
-                    message = (
-                        f"*📝 Task {i}:* {task['title']}\n"
-                        f"🗒️ _{task['note']}_\n"
-                        f"🔢 *Minimum required:* {task['min_required_completion']} {task['completion_unit']}"
-                    )
-
                     if not task["completed"]:
                         keyboard = InlineKeyboardMarkup(
                             [
@@ -63,7 +57,18 @@ class SchedulerService:
                                 ]
                             ]
                         )
+                        message = (
+                            f"*📝 Task {i}:* {task['title']}\n"
+                            f"🗒️ _{task['note']}_\n"
+                            f"🔢 *Minimum required:* {task['min_required_completion']} {task['completion_unit']}"
+                        )
                     else:
+                        message = (
+                            f"*📝 Task {i}:* {task['title']}\n"
+                            f"🗒️ _{task['note']}_\n"
+                            f"🔢 *Minimum required:* {task['min_required_completion']} {task['completion_unit']}"
+                            f"✅ _Task Already Completed_"
+                        )
                         keyboard = None
                     await bot.send_message(
                         chat_id=int(user["telegram_id"]),

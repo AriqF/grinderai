@@ -27,6 +27,8 @@ class UserBasicInfo(BaseModel):
     last_name: Optional[str]
     username: str
     language: str
+    level: Optional[int] = 1
+    exp: Optional[int] = 0
 
 
 class Config:

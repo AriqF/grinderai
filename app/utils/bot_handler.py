@@ -20,6 +20,7 @@ from app.services.llm_service import LLMService
 from app.services.mongo_memory import ChatMemory
 from app.services.goals_service import UserGoalService
 import asyncio
+import textwrap
 
 load_dotenv()
 
@@ -74,16 +75,20 @@ async def handle_task_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         exp_incr = 75
         _, task = await asyncio.gather(
             user_service.increase_exp(str(user.id), exp_incr),
-            goal_service.update_daily_task(task_id, True),
+            goal_service.update_daily_task(task_id, is_complete=True),
         )
         await query.edit_message_text(
-            f"✅ *{task.title}* marked as completed!\n_+{exp_incr} EXP_",
+            f"✅ *{task.title}* marked as completed!\n\n_📈 +{exp_incr} EXP_",
             parse_mode="Markdown",
         )
     elif action == "skip":
-        task = await goal_service.update_daily_task(task_id, False)
+        exp_decr = 125
+        _, task = await asyncio.gather(
+            user_service.decrease_exp(str(user.id), exp_decr),
+            goal_service.update_daily_task(task_id, is_complete=False),
+        )
         await query.edit_message_text(
-            f"⏭️ *{task.title}* skipped", parse_mode="Markdown"
+            f"⏭️ *{task.title}* skipped\n\n_📉 -{exp_decr} EXP_", parse_mode="Markdown"
         )
     else:
         await query.edit_message_text("⚠️ Unknown action.")
@@ -107,10 +112,40 @@ async def handle_today_sentiment(update: Update, context: ContextTypes.DEFAULT_T
         raise ValueError(e)
 
 
+async def handle_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        db = await get_database()
+        user_service = UserService(db)
+        user = await user_service.get_user_by_id(str(update.effective_user.id))
+        first_name = user.get("first_name") or "-"
+        last_name = user.get("last_name")
+        last_name = (
+            "" if not last_name or str(last_name).lower() == "none" else last_name
+        )
+
+        exp = int(user.get("exp", 0))
+        message = textwrap.dedent(
+            f""" 
+        🪪 User Profile
+        ━━━━━━━━━━━━━━
+        👤 Name: {first_name} {last_name}
+        🆔 Telegram ID: {user.get("telegram_id", "-")}
+        🧬 Level: {user.get("level", 0)}
+        ⭐ EXP: {exp} / {((exp//100)+ 1) * 100 }
+
+        _Bot command wont appear as Rune chat history_
+        """
+        )
+        return await update.message.reply_text(message, parse_mode="Markdown")
+    except Exception as e:
+        raise ValueError(e)
+
+
 app.add_handler(CommandHandler("start", start_command))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.add_handler(CallbackQueryHandler(handle_task_callback))
 app.add_handler(CommandHandler("today", handle_today_sentiment))
+app.add_handler(CommandHandler("profile", handle_stats))
 
 
 # Webhook endpoint

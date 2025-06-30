@@ -67,3 +67,15 @@ async def inc_exp(
         return jsonable_encoder(update)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("level/dec")
+async def inc_exp(
+    telegram_id: str, amount: int, db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    try:
+        service = UserService(db)
+        update = await service.decrease_exp(str(telegram_id), int(amount))
+        return jsonable_encoder(update)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

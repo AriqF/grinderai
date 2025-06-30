@@ -80,27 +80,53 @@ class UserService:
     def calculate_level(self, exp: int) -> int:
         return int((exp // 100) + 1)
 
+    def serialize_user_doc(self, doc: dict) -> dict:
+        if not doc:
+            return None
+        doc["id"] = str(doc.pop("_id"))
+        return doc
+
     async def increase_exp(self, uid: str, amount: int):
         try:
-            updated = await self.collection.find_one_and_update(
-                {"_id": uid},
-                {"$inc": {"exp": amount}},
-                return_document=ReturnDocument.AFTER,
-            )
+            # Fetch current user
+            user = await self.collection.find_one({"_id": uid})
+            if not user:
+                raise ValueError("User not found")
 
-            if not updated:
-                raise ValueError("Unable to increase user exp")
-
-            new_exp = updated["exp"]
+            current_exp = user.get("exp", 0)
+            new_exp = current_exp + amount
             new_level = self.calculate_level(new_exp)
 
-            if new_level > updated.get("level", 1):
-                await self.collection.update_one(
-                    {"_id": uid}, {"$set": {"level": new_level}}
-                )
-            updated["level"] = new_level
+            # Update both exp and level
+            await self.collection.update_one(
+                {"_id": uid}, {"$set": {"exp": new_exp, "level": new_level}}
+            )
 
-            return updated
+            user["exp"] = new_exp
+            user["level"] = new_level
+            return self.serialize_user_doc(user)
+
         except Exception as e:
-            print(e)
-            raise ValueError(e)
+            raise ValueError(f"Failed to increase EXP: {e}")
+
+    async def decrease_exp(self, uid: str, amount: int):
+        try:
+            # Fetch the current user document
+            user = await self.collection.find_one({"_id": uid})
+            if not user:
+                raise ValueError("User not found")
+
+            current_exp = user.get("exp", 0)
+            new_exp = max(current_exp - amount, 0)  # Prevent negative EXP
+            new_level = self.calculate_level(new_exp)
+
+            # Update EXP and possibly level
+            await self.collection.update_one(
+                {"_id": uid}, {"$set": {"exp": new_exp, "level": new_level}}
+            )
+
+            user["exp"] = new_exp
+            user["level"] = new_level
+            return self.serialize_user_doc(user)
+        except Exception as e:
+            raise ValueError(f"Failed to decrease user EXP: {e}")

@@ -445,7 +445,7 @@ class LLMService:
                 "mixed": "🤔",
             }
 
-            level_emojis = {"low": "🔻", "moderate": "➡️", "high": "🔺"}
+            level_emojis = {"low": "🔽", "moderate": "↔️", "high": "🔼"}
 
             polarity_emoji = polarity_emojis.get(mood_polarity.lower(), "😐")
             motivation_emoji = level_emojis.get(motivation_level.lower(), "➡️")

@@ -63,29 +63,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_task_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()  # Acknowledge the button click
-
+    user = update.effective_user
     data = query.data  # e.g. "complete:task123"
     action, task_id = data.split(":")
     db = await get_database()
     goal_service = UserGoalService(db, str(update.effective_user.id))
+    user_service = UserService(db)
 
     if action == "complete":
-        await asyncio.gather(
-            query.edit_message_text("✅ Marked as *completed*!", parse_mode="Markdown"),
+        exp_incr = 75
+        _, task = await asyncio.gather(
+            user_service.increase_exp(str(user.id), exp_incr),
             goal_service.update_daily_task(task_id, True),
         )
+        await query.edit_message_text(
+            f"✅ *{task.title}* marked as completed!\n_+{exp_incr} EXP_",
+            parse_mode="Markdown",
+        )
     elif action == "skip":
-        await asyncio.gather(
-            query.edit_message_text("⏭ Task *skipped*.", parse_mode="Markdown"),
-            goal_service.update_daily_task(task_id, False),
+        task = await goal_service.update_daily_task(task_id, False)
+        await query.edit_message_text(
+            f"⏭️ *{task.title}* skipped", parse_mode="Markdown"
         )
     else:
         await query.edit_message_text("⚠️ Unknown action.")
 
 
+async def handle_today_sentiment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        user = update.effective_user
+        db = await get_database()
+        llm_service = LLMService(db, str(user.id))
+        data = await llm_service.get_mood_sentiment(user.first_name)
+        if not data:
+            await update.message.reply_text(
+                "There doesn’t seem to be enough emotional context to analyze your mood today. Feel free to share more about your thoughts or experiences when you're ready — I'm here to help you reflect, track, and grow at your own pace"
+            )
+        parsed = llm_service.mood_sentiment_to_text(data)
+        await update.message.reply_text(parsed, parse_mode="Markdown")
+        return "OK"
+    except Exception as e:
+        print("TELEGRAM_CMD_TODAY ERR", e)
+        raise ValueError(e)
+
+
 app.add_handler(CommandHandler("start", start_command))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.add_handler(CallbackQueryHandler(handle_task_callback))
+app.add_handler(CommandHandler("today", handle_today_sentiment))
 
 
 # Webhook endpoint

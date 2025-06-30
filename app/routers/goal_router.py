@@ -101,3 +101,15 @@ async def test_daily_share(
         return await service.ask_daily_sharing(name)
     except Exception as e:
         ValueError(e)
+
+
+@router.get("/test-mood-analyzer")
+async def test_mood_analyzer(
+    telegram_id: str, name: str, db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    try:
+        service = LLMService(db, telegram_id)
+        result = await service.insert_mood_summary(name)
+        return result
+    except Exception as e:
+        ValueError(e)

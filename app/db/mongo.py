@@ -46,5 +46,10 @@ async def init_indexes():
         unique=True,
         name="idx_telegram_date_unique",
     )
+    await db["users_mood"].create_index(
+        [("telegram_id", ASCENDING), ("date", ASCENDING)],
+        unique=True,
+        name="idx_telegram_date_unique",
+    )
 
     logger.info("[MongoDB] Indexes initialized.")

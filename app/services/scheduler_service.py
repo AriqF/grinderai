@@ -7,6 +7,8 @@ from app.utils.bot_handler import bot
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import asyncio
 from app.services.llm_service import LLMService
+from app.utils.util_func import get_current_time
+from datetime import datetime, timedelta
 
 
 class SchedulerService:
@@ -102,4 +104,18 @@ class SchedulerService:
             return "OK"
         except Exception as e:
             print("ASK_DAILY_SHARE_SCHED_ERR", e)
+            raise ValueError(e)
+
+    async def analyze_daily_sentiment(self):
+        try:
+            user_service = UserService(self.db)
+            user_list = await user_service.find_all()
+            for user in user_list:
+                llm_service = LLMService(self.db, str(user["telegram_id"]))
+                yesterday = get_current_time("Asia/Jakarta") - timedelta(days=1)
+                result = await llm_service.get_mood_sentiment(
+                    user["first_name"], yesterday
+                )
+            return "OK"
+        except Exception as e:
             raise ValueError(e)

@@ -4,6 +4,7 @@ from app.db.mongo import get_database
 from app.services.user_service import UserService
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.utils.util_func import get_current_time
+from fastapi.encoders import jsonable_encoder
 
 router = APIRouter()
 
@@ -45,12 +46,24 @@ async def update_goals(
     telegram_id: str, goals: list[str], db: AsyncIOMotorDatabase = Depends(get_database)
 ):
     try:
-        repo = UserService(db)
-        success = await repo.update_goals(telegram_id, goals)
+        service = UserService(db)
+        success = await service.update_goals(telegram_id, goals)
         if not success:
             raise HTTPException(
                 status_code=404, detail="User not found or update failed"
             )
         return {"message": "Goals updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("level/inc")
+async def inc_exp(
+    telegram_id: str, amount: int, db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    try:
+        service = UserService(db)
+        update = await service.increase_exp(str(telegram_id), int(amount))
+        return jsonable_encoder(update)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

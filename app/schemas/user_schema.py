@@ -15,8 +15,8 @@ class UserOut(BaseModel):
     id: str = Field(..., alias="_id")
     telegram_id: str
     username: str
-    current_level: Optional[int] = 1
-    exp_points: Optional[int] = 0
+    level: Optional[int] = 1
+    exp: Optional[int] = 0
     created_at: datetime
     updated_at: Optional[datetime]
 

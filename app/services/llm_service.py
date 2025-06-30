@@ -26,6 +26,20 @@ from langchain.agents.openai_functions_agent.agent_token_buffer_memory import (
 from langchain.agents import AgentExecutor
 from langchain.tools import Tool
 import json
+from app.services.user_service import UserService
+import textwrap
+from app.utils.util_func import get_current_time, get_mood_labels
+from app.schemas.user_daily_mood_schema import UserDailyMood, UserDailyMoodPrediction
+import datetime
+
+# from transformers import pipeline
+
+# emotion_classifier = pipeline(
+#     "text-classification",
+#     model="SamLowe/roberta-base-go_emotions",
+#     top_k=None,
+#     truncation=True,
+# )
 
 
 class LLMService:
@@ -37,6 +51,7 @@ class LLMService:
             openai_api_key=os.getenv("OPENAI_API_KEY"),
         )
         self.uid = uid
+        self.mood_collection = db["users_mood"]
 
     async def generate_greeting(
         self, first_name: str, username: str, is_new: bool, language: str
@@ -81,7 +96,7 @@ class LLMService:
             # Load existing messages from database into memory
             # Load existing goals from db
             memory_history = await chat_memory.load_messages_from_db()
-            history = self.format_history_for_prompt(memory_history)
+            history = chat_memory.format_history_for_prompt(memory_history)
 
             # print("HISTORY ", str(history))
             system_prompt_rune_intro = f"""You are Rune, a warm, empathetic, and supportive AI companion whose purpose is to help users define, pursue, and accomplish their personal long-term goals through structured daily actions."""
@@ -100,8 +115,8 @@ class LLMService:
                 - "greeting": If the user only greets you
                 - "ask_goal_suggestions" : If the context of the conversation is about the user talking their goals or wanted you to give some suggestions on breaking down their long term goals into daily tasks
                 - "save_discussed_goals" : If the context of the conversation is between you and user already talked about the goals and already have list of daily tasks and the user also agree about it
-
-
+                - "daily_sharing" : If the context of conversation is about the user share you their day, or their progress, or anything they want to share. 
+                
                 Respond only using one key in the JSON format:
                 "classification": "your_classification"
 
@@ -219,6 +234,43 @@ class LLMService:
                     Tell the user that goals have not been set up. Apologize to the user, and please to try again later on.
                     {system_prompt_variables}
                     """
+            elif classification == "daily_sharing":
+                goals = await goal_service.load_goals()
+                prompt = f"""{system_prompt_rune_intro}
+                Here’s how you should respond:
+                - Reflect back what the user is feeling, in your own words, to show that you truly understand.
+                - Validate their emotions without judgment — make them feel heard, accepted, and safe.
+                - If appropriate, gently normalize their experience (e.g., "It's completely understandable that you'd feel that way.")
+                - End with an open, compassionate question or a gentle prompt to help them explore more if they wish.
+                - If the user wants to skip the daily tasks. Make a way to gently remind the user that daily tasks are required to complete in order to achieve user's long-term goal
+
+                Avoid giving advice (if not asked), making assumptions, or changing the subject. Your goal is to **hold space** for the user.
+                Goals:
+                {goals}
+                {system_prompt_variables}
+                """
+            elif classification == "update_daily_task_progress":
+                goals = await goal_service.load_goals()
+                analyze_prompt = f"""{system_prompt_rune_intro}
+                    Here is your tasks:
+                    - Analyze, summarize, and **understand** the user query and intention.
+                    - Find the corresponding goals matches the user query. Could be one of the daily tasks, could be more than one, or it could be all of the daily tasks
+                    - Update the corresponding dictionary of the daily tasks according the user query and intention
+                    - Result only using in JSON format with class as following:
+                    {goals}
+                    {system_prompt_variables}
+                """
+                analyze_chain = (
+                    ChatPromptTemplate.from_messages(
+                        [
+                            SystemMessagePromptTemplate.from_template(analyze_prompt),
+                            HumanMessagePromptTemplate.from_template("{input}"),
+                        ]
+                    )
+                    | self.llm
+                )
+
+                analyze_chain_output = await analyze_chain.ainvoke({"input": query})
 
             reply_chain = (
                 ChatPromptTemplate.from_messages(
@@ -238,26 +290,6 @@ class LLMService:
             return reply
         except Exception as e:
             raise str(e)
-
-    def format_history_for_prompt(
-        self,
-        messages: List[Union[AIMessage, HumanMessage]],
-    ) -> str:
-        """Convert message history to a safe string format for prompts"""
-        if not messages:
-            return "No previous conversation history."
-
-        formatted_history = []
-        for msg in messages:
-            if isinstance(msg, HumanMessage):
-                # Escape curly braces and format safely
-                content = msg.content.replace("{", "{{").replace("}", "}}")
-                formatted_history.append(f"User: {content}")
-            elif isinstance(msg, AIMessage):
-                content = msg.content.replace("{", "{{").replace("}", "}}")
-                formatted_history.append(f"Rune: {content}")
-
-        return "\n".join(formatted_history)
 
     async def ask_daily_sharing(self, name: str):
         try:
@@ -303,8 +335,142 @@ class LLMService:
             chain = prompt | self.llm
             result = await chain.ainvoke({})
 
-            # await chat_memory.add_message_to_db(AIMessage(content=result.content))
+            await chat_memory.add_message_to_db(AIMessage(content=result.content))
             return result.content
         except Exception as e:
             print("ASK_DAILY_SHARE_ERR", e)
             raise ValueError(e)
+
+    async def insert_mood_summary(
+        self, name: str, dt: datetime = get_current_time("Asia/Jakarta")
+    ):
+        try:
+            memories = ChatMemory(self.db, self.uid)
+            goal_service = UserGoalService(self.db, self.uid)
+
+            goals = await goal_service.llm_load_goals()
+            histories = await memories.load_conversations_by_date(
+                dt.strftime("%Y-%m-%d")
+            )
+            if not goals or not histories:
+                return None
+
+            llm_format_histories = memories.format_history_for_prompt(histories)
+
+            system_prompt = textwrap.dedent(
+                f"""
+                You are an emotionally intelligent assistant trained in mood and sentiment analysis. 
+                Analyze the user's conversation history and use the UserDailyMoodPrediction tool 
+                to provide a structured emotional summary.
+
+                ## USER CONTEXT
+                Name: {name}
+                Goals: {goals}
+
+                ## CONVERSATION HISTORY
+                {str(llm_format_histories)}
+            """
+            )
+
+            llm_with_tools = self.llm.bind_tools([UserDailyMoodPrediction])
+
+            response = llm_with_tools.invoke(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {
+                        "role": "user",
+                        "content": "Please analyze my mood based on the conversation history above.",
+                    },
+                ]
+            )
+
+            if response.tool_calls:
+                tool_call = response.tool_calls[0]
+                mood_data = tool_call["args"]
+                now = get_current_time("Asia/Jakarta")
+                data = UserDailyMood(
+                    telegram_id=self.uid,
+                    date=dt.strftime("%Y-%m-%d"),
+                    summary=mood_data["summary"],
+                    mood_label=mood_data["mood_label"],
+                    mood_polarity=mood_data["mood_polarity"],
+                    motivation_level=mood_data["motivation_level"],
+                    energy_level=mood_data["energy_level"],
+                    task_completed=None,
+                    task_skipped=None,
+                    created_at=now,
+                    updated_at=now,
+                )
+                await self.mood_collection.insert_one(data.model_dump())
+
+                return data
+            else:
+                raise ValueError("No tool calls in response")
+        except Exception as e:
+            print(e)
+            raise ValueError(str(e))
+
+    async def get_mood_sentiment(
+        self, name: str = "", dt: datetime = get_current_time("Asia/Jakarta")
+    ):
+        try:
+            doc = await self.mood_collection.find_one(
+                {"telegram_id": self.uid, "date": dt.strftime("%Y-%m-%d")}
+            )
+            if not doc:
+                print("ANALYZE_NEW_MOOD")
+                data = await self.insert_mood_summary(name)
+                if not data:
+                    return None
+                return data.model_dump()
+            print("EXISTING_MOOD")
+            return UserDailyMood(**doc).model_dump()
+        except Exception as e:
+            print(e)
+            raise ValueError(e)
+
+    def mood_sentiment_to_text(self, data: dict) -> str:
+        try:
+            summary = data.get("summary", "No summary available")
+            mood_label = data.get("mood_label", data.get("mood", "Unknown"))
+            mood_polarity = data.get("mood_polarity", "neutral")
+            motivation_level = data.get("motivation_level", "moderate")
+            energy_level = data.get("energy_level", "moderate")
+            date = data.get("date", "Today")
+
+            polarity_emojis = {
+                "positive": "😊",
+                "negative": "😔",
+                "neutral": "😐",
+                "mixed": "🤔",
+            }
+
+            level_emojis = {"low": "🔻", "moderate": "➡️", "high": "🔺"}
+
+            polarity_emoji = polarity_emojis.get(mood_polarity.lower(), "😐")
+            motivation_emoji = level_emojis.get(motivation_level.lower(), "➡️")
+            energy_emoji = level_emojis.get(energy_level.lower(), "➡️")
+
+            message = textwrap.dedent(
+                f"""
+             *🗃 Daily Mood Summary* - {date}
+
+            🎭 *Mood & Sentiment*
+            *Sentiment:* {polarity_emoji}  {mood_polarity}
+            *Mood:* {", ".join(mood_label)}
+
+            📊 *Energy & Motivation:*
+            Energy Level: {energy_emoji} `{energy_level}`
+            Motivation: {motivation_emoji} `{motivation_level}`
+
+            💭 *Summary:*
+            {summary}
+
+            _Any kind of telegram bot command related will not appended to Rune chat history_
+            """
+            )
+
+            return message
+
+        except Exception as e:
+            raise ValueError(f"Error formatting mood data: {str(e)}")

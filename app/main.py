@@ -14,6 +14,7 @@ from app.utils.scheduler import (
     remind_user_tasks,
     daily_progress_creation,
     ask_daily_share,
+    analyze_daily_sentiment,
 )
 import pytz
 
@@ -40,6 +41,9 @@ async def startup_event():
         CronTrigger(hour=0, timezone=tz),
     )
     scheduler.add_job(ask_daily_share, CronTrigger(hour=20, minute=15, timezone=tz))
+    scheduler.add_job(
+        analyze_daily_sentiment, CronTrigger(hour=1, minute=30, timezone=tz)
+    )
     scheduler.start()
 
 

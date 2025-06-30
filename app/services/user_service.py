@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from app.schemas.user_schema import UserCreate, UserOut, UserBasicInfo
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from telegram import User
+from pymongo import ReturnDocument
 
 
 class UserService:
@@ -27,8 +28,8 @@ class UserService:
                     "first_name": user.first_name,
                     "last_name": user.last_name,
                     "language": user.language_code,
-                    "current_level": 1,
-                    "exp_points": 0,
+                    "level": 1,
+                    "exp": 0,
                     "created_at": datetime.utcnow(),
                 }
             )
@@ -74,4 +75,32 @@ class UserService:
             return user_list
         except Exception as e:
             print("ERROR ", e)
+            raise ValueError(e)
+
+    def calculate_level(self, exp: int) -> int:
+        return int((exp // 100) + 1)
+
+    async def increase_exp(self, uid: str, amount: int):
+        try:
+            updated = await self.collection.find_one_and_update(
+                {"_id": uid},
+                {"$inc": {"exp": amount}},
+                return_document=ReturnDocument.AFTER,
+            )
+
+            if not updated:
+                raise ValueError("Unable to increase user exp")
+
+            new_exp = updated["exp"]
+            new_level = self.calculate_level(new_exp)
+
+            if new_level > updated.get("level", 1):
+                await self.collection.update_one(
+                    {"_id": uid}, {"$set": {"level": new_level}}
+                )
+            updated["level"] = new_level
+
+            return updated
+        except Exception as e:
+            print(e)
             raise ValueError(e)

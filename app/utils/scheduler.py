@@ -40,3 +40,13 @@ async def ask_daily_share():
     except Exception as e:
         print("REMIND_USER_TASKS ERR ", e)
         raise ValueError(e)
+
+
+async def analyze_daily_sentiment():
+    try:
+        db = await get_database()
+        scheduler_service = SchedulerService(db)
+        await scheduler_service.analyze_daily_sentiment()
+        return "OK"
+    except Exception as e:
+        raise ValueError(e)

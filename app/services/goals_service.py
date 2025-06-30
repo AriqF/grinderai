@@ -14,10 +14,12 @@ import uuid
 import json
 from app.utils.util_func import get_current_time
 import asyncio
+from pymongo import ReturnDocument
 
 
 class UserGoalService:
     def __init__(self, db: AsyncIOMotorDatabase, telegram_id: str):
+        self.db = db
         self.goal_collection = db["users_goals"]
         self.progress_collection = db["daily_progress"]
         self.telegram_id = telegram_id
@@ -346,7 +348,7 @@ class UserGoalService:
         try:
             now = get_current_time("Asia/Jakarta")
             date = now.strftime("%Y-%m-%d")
-            await self.progress_collection.update_one(
+            doc = await self.progress_collection.find_one_and_update(
                 {
                     "telegram_id": self.telegram_id,
                     "date": date,
@@ -359,7 +361,10 @@ class UserGoalService:
                         "updated_at": now,
                     }
                 },
+                return_document=ReturnDocument.AFTER,
             )
-            return "OK"
+            # return the updated task obj
+            doc = UserDailyProgress(**doc)
+            return [task for task in doc.tasks if task.task_id == task_id][0]
         except Exception as e:
             raise ValueError(e)

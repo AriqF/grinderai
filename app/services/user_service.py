@@ -65,10 +65,13 @@ class UserService:
         )
         return result.modified_count > 0
 
-    async def find_all(self) -> List[UserOut]:
+    async def find_all(self):
         try:
-            users = await self.collection.find()
-            return []
+            cursor = self.collection.find()
+            user_list = []
+            async for doc in cursor:
+                user_list.append(UserBasicInfo(**doc).model_dump())
+            return user_list
         except Exception as e:
             print("ERROR ", e)
             raise ValueError(e)

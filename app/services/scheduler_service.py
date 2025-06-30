@@ -6,6 +6,7 @@ from app.services.user_service import UserService
 from app.utils.bot_handler import bot
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import asyncio
+from app.services.llm_service import LLMService
 
 
 class SchedulerService:
@@ -75,11 +76,8 @@ class SchedulerService:
 
     async def daily_progress_creation(self):
         try:
-            cursor = self.user_collection.find()
-            user_list = []
-            async for doc in cursor:
-                user_list.append(UserBasicInfo(**doc).model_dump())
-
+            user_service = UserService(self.db)
+            user_list = await user_service.find_all()
             for user in user_list:
                 tg_id = str(user["telegram_id"])
                 goal_service = UserGoalService(self.db, tg_id)
@@ -87,4 +85,21 @@ class SchedulerService:
             return "OK"
         except Exception as e:
             print("DAILY_PROGRESS_CREATION ERR", e)
+            raise ValueError(e)
+
+    async def ask_daily_share(self):
+        try:
+            user_service = UserService(self.db)
+            user_list = await user_service.find_all()
+            for user in user_list:
+                llm_service = LLMService(self.db, str(user["telegram_id"]))
+                text = await llm_service.ask_daily_sharing(user["first_name"])
+                await bot.send_message(
+                    chat_id=int(user["telegram_id"]),
+                    text=text,
+                    parse_mode="Markdown",
+                )
+            return "OK"
+        except Exception as e:
+            print("ASK_DAILY_SHARE_SCHED_ERR", e)
             raise ValueError(e)

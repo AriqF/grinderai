@@ -10,6 +10,7 @@ from app.utils.bot_handler import bot
 import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from app.services.scheduler_service import SchedulerService
+from app.services.llm_service import LLMService
 
 router = APIRouter()
 
@@ -87,5 +88,16 @@ async def test_scheduler(db: AsyncIOMotorDatabase = Depends(get_database)):
     try:
         scheduler_service = SchedulerService(db)
         return await scheduler_service.remind_daily_tasks()
+    except Exception as e:
+        ValueError(e)
+
+
+@router.post("/test-daily-share")
+async def test_daily_share(
+    telegram_id: str, name: str, db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    try:
+        service = LLMService(db, telegram_id)
+        return await service.ask_daily_sharing(name)
     except Exception as e:
         ValueError(e)

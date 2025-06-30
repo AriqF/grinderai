@@ -29,3 +29,14 @@ async def daily_progress_creation():
     except Exception as e:
         print("REMIND_USER_TASKS ERR ", e)
         raise ValueError(e)
+
+
+async def ask_daily_share():
+    try:
+        db = await get_database()
+        scheduler_service = SchedulerService(db)
+        await scheduler_service.ask_daily_share()
+        return "OK"
+    except Exception as e:
+        print("REMIND_USER_TASKS ERR ", e)
+        raise ValueError(e)

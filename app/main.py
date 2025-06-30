@@ -13,7 +13,9 @@ from app.utils.scheduler import (
     test_cron_job,
     remind_user_tasks,
     daily_progress_creation,
+    ask_daily_share,
 )
+import pytz
 
 load_dotenv()
 
@@ -27,18 +29,17 @@ app.include_router(goal_router.router, prefix="/goals", tags=["Goals"])
 
 @app.on_event("startup")
 async def startup_event():
+    tz = pytz.timezone("Asia/Jakarta")
     await connect_to_mongo()
     await configure_bot()
     # scheduler.add_job(test_cron_job, CronTrigger(second="*/10"))
-    scheduler.add_job(remind_user_tasks, CronTrigger(hour=6))
-    scheduler.add_job(remind_user_tasks, CronTrigger(hour=20))
+    scheduler.add_job(remind_user_tasks, CronTrigger(hour=6, timezone=tz))
+    scheduler.add_job(remind_user_tasks, CronTrigger(hour=20, timezone=tz))
     scheduler.add_job(
         daily_progress_creation,
-        CronTrigger(
-            hour=0,
-        ),
+        CronTrigger(hour=0, timezone=tz),
     )
-    # Todo: auto create progress collection
+    scheduler.add_job(ask_daily_share, CronTrigger(hour=20, minute=15, timezone=tz))
     scheduler.start()
 
 

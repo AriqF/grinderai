@@ -36,6 +36,7 @@ class LLMService:
             model="gpt-3.5-turbo",
             openai_api_key=os.getenv("OPENAI_API_KEY"),
         )
+        self.uid = uid
 
     async def generate_greeting(
         self, first_name: str, username: str, is_new: bool, language: str
@@ -257,3 +258,53 @@ class LLMService:
                 formatted_history.append(f"Rune: {content}")
 
         return "\n".join(formatted_history)
+
+    async def ask_daily_sharing(self, name: str):
+        try:
+            # Create memory instance
+            chat_memory = ChatMemory(self.db, self.uid)
+            goal_service = UserGoalService(self.db, self.uid)
+
+            memory_history = await chat_memory.load_messages_from_db()
+            history = self.format_history_for_prompt(memory_history)
+
+            goals = await goal_service.llm_load_goals()
+            # print("HISTORY ", str(history))
+            system_prompt = f"""You are Rune, a warm, empathetic, and supportive AI companion. Your purpose is to guide and uplift users as they pursue their personal long-term goals. You do this by helping them build self-awareness, reflect on their daily experiences, and translate intentions into structured daily actions.
+                Your current task is to gently check in with the user. Begin the conversation by:
+                - Asking how their day was in a natural or implicitly ask if they have something in mind, emotionally open-ended way. 
+                - Asking the progress of their goal is second priority. The first priority comes to what are they feeling for today
+                - Encouraging authentic reflection while being validating and supportive
+                - Be gentle, warm, and attentive. Prioritize emotional connection and trust.
+                - Your tone should always be supportive, calming, and empathetic.
+                - Think other terms beside "How was your day?", use Thoughtful, Reflective, Friendly, and warm tone. use terms below as examples:
+                    - What did today teach you?
+                    - What moments stood out to you today?
+                    - Where did your mind wander most today?
+                    - What’s one thing you’re grateful for from today?
+                    - How did today treat you?
+                    - Catch me up—what did your day look like?
+                - Your taks in this initial message is not to solve anything — just to open the door for honest reflection and emotional grounding.
+
+
+                ## CONVERSATION VARIABLES
+                User Info:
+                Name: {name}
+                Goals: {goals}
+                Conversation history:
+                {str(history)}
+            """
+
+            prompt = ChatPromptTemplate.from_messages(
+                [
+                    SystemMessagePromptTemplate.from_template(system_prompt),
+                ]
+            )
+            chain = prompt | self.llm
+            result = await chain.ainvoke({})
+
+            # await chat_memory.add_message_to_db(AIMessage(content=result.content))
+            return result.content
+        except Exception as e:
+            print("ASK_DAILY_SHARE_ERR", e)
+            raise ValueError(e)

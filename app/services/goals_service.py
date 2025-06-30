@@ -74,6 +74,7 @@ class UserGoalService:
 
     async def save_goals(self, goal: dict):
         try:
+            now = get_current_time("Asia/Jakarta")
             doc = await self.goal_collection.find_one({"_id": self.telegram_id})
             if not doc:
                 await self.create_goals(goal)
@@ -85,7 +86,7 @@ class UserGoalService:
                             "long_term_goal": goal["long_term_goal"],
                             "daily_tasks": goal["daily_tasks"],
                         },
-                        "$setOnInsert": {"updated_at": datetime.utcnow()},
+                        "$setOnInsert": {"updated_at": now},
                     },
                     upsert=True,
                 )

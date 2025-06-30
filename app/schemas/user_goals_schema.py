@@ -29,6 +29,14 @@ class UserGoal(BaseModel):
     updated_at: datetime
 
 
+class CreateUserGoal(BaseModel):
+    id: str = Field(..., alias="_id")
+    long_term_goal: UserLongTermGoal
+    daily_tasks: List[UserDailyTask] = []
+    created_at: datetime
+    updated_at: datetime
+
+
 class Config:
     allow_population_by_field_name = True
     json_encoders = {datetime: lambda v: v.isoformat()}

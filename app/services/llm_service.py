@@ -31,6 +31,7 @@ import textwrap
 from app.utils.util_func import get_current_time, get_mood_labels
 from app.schemas.user_daily_mood_schema import UserDailyMood, UserDailyMoodPrediction
 import datetime
+from app.schemas.user_goals_schema import CreateUserGoal
 
 # from transformers import pipeline
 
@@ -158,15 +159,16 @@ class LLMService:
             if classification == "ask_goal_suggestions":
                 prompt = f"""{system_prompt_rune_intro}
                 Understand and analyze the user intention and context based on user query input and conversation history.
-                If user already state their goals, then your task is to analyze and break down the goals into daily achieveable tasks.
-                Convert only to this following format example:
+                If user already state their goals, then your current task is to analyze and break down the goals into **daily achieveable tasks.**
+                The number of completion should be counted in **daily or less (minutes, times, hour)** unit. DO NOT USE SOMETHING LIKE: 3x times a week, use 1x times a day.
+                Use following format as example of breaking down goals into daily tasks:
                 Goal: "Learn Spanish fluently in 6 months"
                 Daily Tasks:
-                1. **Duolingo practice** - Complete 2 lessons (15-20 min)
-                2. **Vocabulary flashcards** - Review 10 new words + 20 previous words
-                3. **Spanish media** - Watch 1 Spanish YouTube video with subtitles
+                1. *Duolingo practice* - Complete 2 lessons (15-20 min)
+                2. *Vocabulary flashcards* - Review 10 new words + 20 previous words
+                3. *Spanish media* - Watch 1 Spanish YouTube video with subtitles
                 ... 
-                5. **Speaking practice** - Record yourself saying 5 sentences using today's vocabulary  
+                5. *Speaking practice* - Record yourself saying 5 sentences using today's vocabulary  
                 The format of daily task should be **Name of the task** - (note or description) (times needed to complete eg: 10mins 1x a day, 1x a day, etc)
                 Then, ask the user if they are agree for the daily tasks to be set. 
                 {system_prompt_variables}
@@ -181,54 +183,42 @@ class LLMService:
                 {system_prompt_variables}
                 """
             elif classification == "save_discussed_goals":
-                convert_prompt = f"""{system_prompt_rune_intro}
+                convert_prompt = textwrap.dedent(
+                    f"""{system_prompt_rune_intro}
                 Analyze the conversation history and then find the daily tasks list that already agreed by the user. Then help the daily tasks into JSON format based on the 'UserGoal' class:
-                    ** Begin classes **
-                    class UserLongTermGoal(BaseModel):
-                        summary: str
-                        target_date: Optional[datetime]
-                        status: str
-                        created_at: datetime
-                        updated_at: datetime
-
-                    class UserDailyTask(BaseModel):
-                        id: str
-                        title: str
-                        note: str
-                        min_required_completion: int
-                        completion_unit: str # times, minutes, hours
-                        created_at: datetime
-                        updated_at: datetime
-
-                    class UserGoal(BaseModel):
-                        id: str = Field(..., alias="_id")
-                        long_term_goal: UserLongTermGoal
-                        daily_tasks: List[UserDailyTask]
-                        created_at: datetime
-                        updated_at: datetime
-                    ** end of classes **
                     Note: 
                     - You can fill "id" in "UserDailyTask" with the name of the task using snake_case. 
                     - Respond with JSON only as in HTTP REST API
                     - Make sure required property is filled!
                     {system_prompt_variables}
                 """
-                convert_chain = (
-                    ChatPromptTemplate.from_messages(
-                        [
-                            SystemMessagePromptTemplate.from_template(convert_prompt),
-                        ]
-                    )
-                    | self.llm
                 )
-                convert = await convert_chain.ainvoke({"input": query})
-                print("CONVERT ", convert.content)
-                save_res = await goal_service.save_goals(json.loads(convert.content))
-                if save_res == "OK":
-                    prompt = f"""{system_prompt_rune_intro}
-                    Tell the user that goals have been set up. Say with positive validation and motivation to cheer up the user. And tell them that you wait the user update for today task
-                    {system_prompt_variables}
-                    """
+                llm_with_tools = self.llm.bind_tools([CreateUserGoal])
+                response = llm_with_tools.invoke(
+                    [
+                        {"role": "system", "content": convert_prompt},
+                        {
+                            "role": "user",
+                            "content": "Please analyze and convert agreed daily tasks based on conversation history above.",
+                        },
+                    ]
+                )
+
+                if response.tool_calls:
+                    tool_call = response.tool_calls[0]
+                    raw_data = tool_call["args"]
+                    print("RAW_DATA_CONVERT_TASKS", raw_data)
+                    save_res = await goal_service.save_goals(raw_data)
+                    if save_res == "OK":
+                        prompt = f"""{system_prompt_rune_intro}
+                        Tell the user that goals have been set up. Say with positive validation and motivation to cheer up the user. And tell them that you wait the user update for today task
+                        {system_prompt_variables}
+                        """
+                    else:
+                        prompt = f"""{system_prompt_rune_intro}
+                        Tell the user that goals have not been set up. Apologize to the user, and please to try again later on.
+                        {system_prompt_variables}
+                        """
                 else:
                     prompt = f"""{system_prompt_rune_intro}
                     Tell the user that goals have not been set up. Apologize to the user, and please to try again later on.
@@ -466,7 +456,7 @@ class LLMService:
             💭 *Summary:*
             {summary}
 
-            _Any kind of telegram bot command related will not appended to Rune chat history_
+            _Bot command wont appear as Rune chat history_
             """
             )
 

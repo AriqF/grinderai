@@ -155,7 +155,6 @@ class ChatMemory(BaseChatMessageHistory):
     async def add_message_to_db(self, message: Union[HumanMessage, AIMessage]) -> None:
         """Add a single message to database"""
         now = get_current_time("Asia/Jakarta")
-        print(now)
         doc = await self.async_collection.find_one({"_id": self.user_id})
         if not doc:
             await self.async_collection.insert_one(

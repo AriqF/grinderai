@@ -40,7 +40,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = await get_database()
     user_service = UserService(db)
     checking = await user_service.check_and_create(user)
-    llm_service = LLMService(db)
+    llm_service = LLMService(db, str(user.id))
     greeting = await llm_service.generate_greeting(
         first_name=user.first_name,
         username=user.username,
@@ -58,7 +58,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = await get_database()
     llm_service = LLMService(db, user.id)
     response = await llm_service.reply_user_message(user, user_input)
-    await update.message.reply_text(response)
+    await update.message.reply_text(response, parse_mode="Markdown")
 
 
 async def handle_task_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -94,7 +94,7 @@ async def handle_task_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.edit_message_text("⚠️ Unknown action.")
 
 
-async def handle_today_sentiment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_mood_sentiment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user = update.effective_user
         db = await get_database()
@@ -144,7 +144,7 @@ async def handle_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app.add_handler(CommandHandler("start", start_command))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.add_handler(CallbackQueryHandler(handle_task_callback))
-app.add_handler(CommandHandler("today", handle_today_sentiment))
+app.add_handler(CommandHandler("mood", handle_mood_sentiment))
 app.add_handler(CommandHandler("profile", handle_stats))
 
 

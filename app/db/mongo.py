@@ -8,7 +8,7 @@ from pymongo import ASCENDING
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+MONGO_URI = os.getenv("MONGO_HOST", "mongodb://localhost:27017")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "rune_ai")
 
 # Setup client with short timeout for quick failure
@@ -21,13 +21,14 @@ db: AsyncIOMotorDatabase | None = None
 async def connect_to_mongo():
     global db
     try:
+        print("CONNECT_MONGO")
         # Ping the server to check connection
         await client.admin.command("ping")
         db = client[MONGO_DB_NAME]
-        logger.info("[MongoDB] Connected successfully.")
+        print("[MongoDB] Connected successfully to", MONGO_URI)
         await init_indexes()
     except ServerSelectionTimeoutError as e:
-        logger.error(f"[MongoDB] Connection failed: {e}")
+        print(f"[MongoDB] Connection failed: {e}")
         db = None  # or raise custom error
 
 

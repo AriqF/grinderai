@@ -25,7 +25,7 @@ class UserBasicInfo(BaseModel):
     telegram_id: str
     first_name: str
     last_name: Optional[str]
-    username: str
+    username: Optional[str]
     language: str
     level: Optional[int] = 1
     exp: Optional[int] = 0

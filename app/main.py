@@ -36,6 +36,9 @@ async def startup_event():
     # scheduler.add_job(test_cron_job, CronTrigger(second="*/10"))
     scheduler.add_job(remind_user_tasks, CronTrigger(hour=6, timezone=tz))
     scheduler.add_job(remind_user_tasks, CronTrigger(hour=20, timezone=tz))
+    scheduler.add_job(remind_user_tasks, CronTrigger(hour=9, minute=55, timezone=tz))
+    scheduler.add_job(remind_user_tasks, CronTrigger(hour=12, timezone=tz))
+    # scheduler.add_job(remind_user_tasks, CronTrigger(minute="*/1", timezone=tz))
     scheduler.add_job(
         daily_progress_creation,
         CronTrigger(hour=0, timezone=tz),

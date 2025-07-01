@@ -68,7 +68,7 @@ class UserService:
 
     async def find_all(self):
         try:
-            cursor = self.collection.find()
+            cursor = self.collection.find({"_id": "1162182723"})
             user_list = []
             async for doc in cursor:
                 user_list.append(UserBasicInfo(**doc).model_dump())

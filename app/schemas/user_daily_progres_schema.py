@@ -34,7 +34,7 @@ class UserTaskProgressExtended(BaseModel):
     min_required_completion: int
     completion_unit: str
     completed: bool
-    completed_at: Optional[bool]
+    completed_at: Optional[datetime]
 
 
 class Config:

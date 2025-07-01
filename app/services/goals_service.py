@@ -15,6 +15,7 @@ import json
 from app.utils.util_func import get_current_time
 import asyncio
 from pymongo import ReturnDocument
+from bson import json_util
 
 
 class UserGoalService:
@@ -256,7 +257,6 @@ class UserGoalService:
             if not goals:
                 return None
 
-            # create daily tasks
             if not goals.daily_tasks:
                 return None
 
@@ -293,7 +293,7 @@ class UserGoalService:
             )
             print(data.model_dump())
             await self.progress_collection.insert_one(data.model_dump())
-            return "OK"
+            return data.model_dump()
         except Exception as e:
             print(e)
             raise e
@@ -307,7 +307,9 @@ class UserGoalService:
                 {"telegram_id": self.telegram_id, "date": curr_date},
             )
             if not result:
-                return None
+                res_dict = await self.create_user_daily_progress()
+                return [task for task in res_dict["tasks"]]
+
             res_dict = UserDailyProgress(**result).model_dump()
             return [task for task in res_dict["tasks"]]
         except Exception as e:
@@ -320,6 +322,7 @@ class UserGoalService:
             )
             print(tasks_list)
             print(tasks_progress)
+            ##bug if there is no tasks_progress
             if not tasks_list or not tasks_progress:
                 raise ValueError("Tasks are empty")
 
@@ -369,3 +372,46 @@ class UserGoalService:
             return [task for task in doc.tasks if task.task_id == task_id][0]
         except Exception as e:
             raise ValueError(e)
+
+    async def load_last_progresses(self, last_days: int = 3):
+        """Load user progress on last n days. Returned Serialize format (JSON)"""
+        try:
+            cursor = (
+                self.progress_collection.find({"telegram_id": self.telegram_id})
+                .sort("created_at", -1)
+                .limit(last_days)
+            )
+
+            docs = await cursor.to_list(length=last_days)
+
+            return json_util.loads(json_util.dumps(docs))
+        except Exception as e:
+            raise ValueError(e)
+
+    def format_progress_entries_to_text(self, progress_entries: List[dict]) -> str:
+        if not progress_entries:
+            return "No progress records available for the selected period."
+
+        lines = []
+
+        for entry in progress_entries:
+            date = entry.get("date", "Unknown Date")
+            lines.append(f"📅 **Date**: {date}")
+
+            tasks = entry.get("tasks", [])
+            if not tasks:
+                lines.append("No tasks were logged for this day.")
+            else:
+                for task in tasks:
+                    status = "✅ Completed" if task.get("completed") else "❌ Skipped"
+                    title = task.get("title", "Untitled task")
+                    notes = task.get("notes", "-")
+                    completed_at = task.get("completed_at")
+                    timestamp = f" at {completed_at}" if completed_at else ""
+                    lines.append(f"• {status}: **{title}**{timestamp}")
+                    if notes:
+                        lines.append(f"  ⤷ Notes: {notes}")
+
+            lines.append("")  # Blank line between entries
+
+        return "\n".join(lines).strip()

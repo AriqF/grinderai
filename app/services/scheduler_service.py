@@ -20,10 +20,8 @@ class SchedulerService:
 
     async def remind_daily_tasks(self):
         try:
-            cursor = self.user_collection.find()
-            user_list = []
-            async for doc in cursor:
-                user_list.append(UserBasicInfo(**doc).model_dump())
+            user_service = UserService(self.db)
+            user_list = await user_service.find_all()
 
             for user in user_list:
                 tg_id = str(user["telegram_id"])

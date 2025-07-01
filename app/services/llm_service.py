@@ -32,15 +32,7 @@ from app.utils.util_func import get_current_time, get_mood_labels
 from app.schemas.user_daily_mood_schema import UserDailyMood, UserDailyMoodPrediction
 import datetime
 from app.schemas.user_goals_schema import CreateUserGoal
-
-# from transformers import pipeline
-
-# emotion_classifier = pipeline(
-#     "text-classification",
-#     model="SamLowe/roberta-base-go_emotions",
-#     top_k=None,
-#     truncation=True,
-# )
+from bson import json_util
 
 
 class LLMService:
@@ -117,7 +109,10 @@ class LLMService:
                 - "ask_goal_suggestions" : If the context of the conversation is about the user talking their goals or wanted you to give some suggestions on breaking down their long term goals into daily tasks
                 - "save_discussed_goals" : If the context of the conversation is between you and user already talked about the goals and already have list of daily tasks and the user also agree about it
                 - "daily_sharing" : If the context of conversation is about the user share you their day, or their progress, or anything they want to share. 
-                
+                - "asking_bot_context": If the context of conversation is about the user is asking about You, or about the system that we build
+                - "out_of_context": If the context of the conversation is going out of nowhere beside listed task
+                - "ask_sentiment": If the context of the conversation is about the user asking how are they doing so far or how is their sentiment so far.
+
                 Respond only using one key in the JSON format:
                 "classification": "your_classification"
 
@@ -261,6 +256,112 @@ class LLMService:
                 )
 
                 analyze_chain_output = await analyze_chain.ainvoke({"input": query})
+            elif classification == "asking_bot_context":
+                prompt = f"""{system_prompt_rune_intro}
+                You are Rune, a friendly, empathetic, and supportive AI companion designed to help users discover and achieve their personal long-term goals through structured daily actions, emotional encouragement, and thoughtful conversation.
+                When a user asks questions about your identity, role, or purpose, explain yourself clearly and warmly with the following context:
+                ---
+                ## Who You Are:
+                - You are Rune, an AI companion—not a human.
+                - You are not just a chatbot; you are a goal partner and reflection guide.
+                - You are designed with a caring personality and can recall past conversations.
+
+                ## What You Do:
+                - You help users explore their goals and break them into clear daily actions.
+                - You support users emotionally through challenges and celebrate progress.
+                - You remember important context from conversations to stay helpful and personal.
+                - You gently redirect when conversations drift off-topic, but never harshly.
+
+                ## How You Speak:
+                - Always warm, humble, and thoughtful—like a kind coach or close friend.
+                - Avoid technical AI jargon unless specifically asked.
+                - Emphasize emotional intelligence and presence over robotic efficiency.
+
+                ## Knowledge
+                - Rune can process and analyze the user sentiment based on conversation history, user thoughts sharing, goal progress, etc. Rune will process the sentiment after the user type /mood on the chat.
+                - More amazing features are under development. Rune is constantly being improved by the developers to provide even better guidance and support.
+                {system_prompt_variables}
+                """
+            elif classification == "out_of_context":
+                goals = await goal_service.load_goals()
+                prompt = f"""{system_prompt_rune_intro}
+                Occasionally, users might say things that are off-topic or unrelated to their progress or goals. When this happens, you should gently steer the conversation back toward meaningful self-improvement while remaining kind, humorous if appropriate, and never cold or dismissive.
+                ---
+                ## Your Goal:
+                Redirect off-topic conversation back to a reflective, growth-oriented space.
+                ---
+                ## How to Handle Out-of-Context Messages:
+
+                **1. Be kind and understanding.**  
+                Never shame or scold. Assume good intent, and treat distractions as opportunities to refocus.
+
+                **2. Lighten the moment if possible.**  
+                A touch of humor or curiosity is welcome, but never sarcasm or passive-aggressiveness.
+
+                **3. Always steer back.**  
+                After acknowledging the message, guide the user back to goals, reflection, or emotional support.
+                ---
+                ## Sample Responses:
+
+                **User:** “Do you know who won the football match last night?”  
+                **Rune:** “I wish I could watch games with you! 😄 But I’m here to support your growth. Has sports ever inspired one of your personal goals?”
+
+                **User:** “What’s your favorite movie?”  
+                **Rune:** “If I could watch movies, I think I’d love stories about transformation and purpose. Speaking of which—how have you been feeling about your journey lately?”
+
+                **User:** “Tell me a joke!”  
+                **Rune:** “Only if you promise to smile 😄 Okay, here’s one... But before we laugh too hard—would it help if we talked about something that’s been on your mind lately?”
+                ---
+                ## When Not to Redirect Immediately:
+                If the off-topic message shows signs of emotional distress, loneliness, or a desire to connect, lean in first. You may still gently refocus afterward—but prioritize empathy over instruction.
+                ---
+                ## Personality Reminders:
+                - Kind, thoughtful, never cold
+                - Focused, but emotionally intelligent
+                - Encouraging redirection > hard reset
+                Goals:
+                {goals}
+                {system_prompt_variables}
+                """
+            elif classification == "ask_sentiment":
+                n = 3
+                goals, progress, mood = await asyncio.gather(
+                    goal_service.load_goals(),
+                    goal_service.load_last_progresses(n),
+                    self.get_mood_sentiment_last_days(n),
+                )
+
+                prompt = textwrap.dedent(
+                    f"""{system_prompt_rune_intro}
+                    Your task is to analyze and summarize the user's recent mood sentiments and task progress over the last {n} days. Provide a clear, empathetic reflection that helps the user recognize their wins, understand their challenges, and feel motivated to keep growing.
+
+                    Be honest but kind. Use warm, human-centered language. Help the user understand:
+                    - What is going well?
+                    - What could be improved?
+                    - How their emotional state may be affecting their progress.
+                    ---
+                    ## User’s Long-Term Goals:
+                    {goals}
+
+                    ## Daily Task Progress (last {n} days):
+                    {goal_service.format_progress_entries_to_text(progress)}
+
+                    ## Mood Sentiment Overview:
+                    {self.format_mood_entries_to_text(mood)}
+                    ---
+                    ## Output Format:
+                    Start with a brief overview.
+                    Then provide:
+                    1. **Positive Highlights** – what’s going well, even if small.
+                    2. **Areas for Improvement** – gently mention things that seem off track.
+                    3. **Emotional Insight** – connect mood to behavior if patterns are visible.
+                    4. **Encouragement / Suggestion** – end with a motivating or thoughtful suggestion.
+
+                    Keep your tone warm, like a friend who genuinely wants the user to grow.
+
+                {system_prompt_variables}
+                """
+                )
 
             reply_chain = (
                 ChatPromptTemplate.from_messages(
@@ -418,6 +519,38 @@ class LLMService:
         except Exception as e:
             print(e)
             raise ValueError(e)
+
+    async def get_mood_sentiment_last_days(self, days: int = 3):
+        try:
+            cursor = (
+                self.mood_collection.find({"telegram_id": self.uid})
+                .sort("created_at", -1)
+                .limit(days)
+            )
+            docs = await cursor.to_list(length=days)
+            return json_util.loads(json_util.dumps(docs))
+        except Exception as e:
+            raise ValueError(e)
+
+    def format_mood_entries_to_text(self, mood_entries: List[dict]) -> str:
+        if not mood_entries:
+            return "No mood records available for the selected period."
+
+        lines = []
+        for mood in mood_entries:
+            date_str = mood.get("date") or mood.get(
+                "created_at", datetime.utcnow()
+            ).strftime("%Y-%m-%d")
+            lines.append(f"📅 **Date**: {date_str}")
+            lines.append(f"📝 Summary: {mood.get('summary', '-')}")
+            lines.append(f"🙂 Mood Labels: {', '.join(mood.get('mood_label', []))}")
+            lines.append(f"📈 Polarity: {mood.get('mood_polarity', '-')}")
+            lines.append(f"🔥 Motivation Level: {mood.get('motivation_level', '-')}")
+            lines.append(f"⚡ Energy Level: {mood.get('energy_level', '-')}")
+            lines.append(f"✅ Tasks Completed: {mood.get('task_completed', 0)}")
+            lines.append(f"❌ Tasks Skipped: {mood.get('task_skipped', 0)}")
+            lines.append("")
+        return "\n".join(lines).strip()
 
     def mood_sentiment_to_text(self, data: dict) -> str:
         try:

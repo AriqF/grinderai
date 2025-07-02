@@ -1,0 +1,16 @@
+{
+    "_id": "telegram_id",
+    "summary": "",
+    "last_messages": [
+        {
+            "type": "human",
+            "content": "aplikasi apa ini?",
+            "timestamp": "....."
+        },
+        {
+            "type": "ai",
+            "content": "ini adalah...",
+            "timestamp": "......"
+        }
+    ]
+}

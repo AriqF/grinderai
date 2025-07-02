@@ -1,0 +1,153 @@
+# Database Collections for Rune Goal Tracking
+
+## 1. User Goals Collection
+user_goals = {
+    "_id": "user_id",
+    "long_term_goal": {
+        "title": "Learn Spanish fluently",
+        "description": "Be able to have conversations with native speakers",
+        "target_date": "2025-12-31",
+        "status": "active",  # active, paused, completed, abandoned
+        "created_at": "2025-06-28T10:00:00Z",
+        "updated_at": "2025-06-28T10:00:00Z"
+    },
+    "daily_tasks": [
+        {
+            "id": "task_1",
+            "title": "Duolingo practice",
+            "description": "Complete 2 lessons (15-20 min)",
+            "success_criteria": "Complete 2 lessons",
+            "estimated_time": 20,
+            "priority": 1,
+            "created_at": "2025-06-28T10:00:00Z"
+        },
+        {
+            "id": "task_2",
+            "title": "Vocabulary flashcards",
+            "description": "Review 10 new + 20 previous words",
+            "success_criteria": "Complete flashcard session",
+            "estimated_time": 15,
+            "priority": 2,
+            "created_at": "2025-06-28T10:00:00Z"
+        }
+    ],
+    "goal_refinement_history": [
+        {
+            "original": "I want to learn Spanish",
+            "refined": "Learn Spanish fluently in 6 months",
+            "final": "Be able to have conversations with native speakers",
+            "refinement_date": "2025-06-28T10:00:00Z"
+        }
+    ]
+}
+
+## 2. Daily Progress Collection
+daily_progress = {
+    "_id": "ObjectId",
+    "user_id": "user_id",
+    "date": "2025-06-28",
+    "tasks": [
+        {
+            "task_id": "task_1",
+            "task_title": "Duolingo practice",
+            "completed": True,
+            "completion_time": "2025-06-28T08:30:00Z",
+            "notes": "Completed 3 lessons, felt good!",
+            "difficulty_rating": 3,  # 1-5 scale
+            "satisfaction_rating": 5  # 1-5 scale
+        },
+        {
+            "task_id": "task_2",
+            "task_title": "Vocabulary flashcards",
+            "completed": False,
+            "skip_reason": "ran_out_of_time",
+            "obstacles": [
+                "work_overtime",
+                "tired"
+            ],
+            "notes": "Had to work late, will try tomorrow morning"
+        }
+    ],
+    "overall_day_rating": 4,  # 1-5 scale
+    "mood_after_tasks": "motivated",
+    "check_in_time": "2025-06-28T20:00:00Z",
+    "created_at": "2025-06-28T20:00:00Z"
+}
+
+## 3. User Preferences Collection
+user_preferences = {
+    "_id": "user_id",
+    "communication_style": {
+        "formality": "casual",  # formal, casual, friendly
+        "motivation_type": "encouraging",  # encouraging, firm, gentle
+        "cultural_context": "western",
+        "preferred_check_in_time": "20:00",
+        "timezone": "UTC+7"
+    },
+    "reminder_settings": {
+        "daily_reminder": True,
+        "reminder_time": "19:00",
+        "reminder_message_style": "friendly",
+        "progress_check_frequency": "daily"
+    },
+    "goal_patterns": {
+        "typical_obstacles": [
+            "time_management",
+            "motivation"
+        ],
+        "success_patterns": [
+            "morning_routine",
+            "accountability"
+        ],
+        "preferred_task_duration": 20,  # minutes
+        "max_daily_tasks": 3
+    }
+}
+
+## 4. Analytics Collection (for Rune's learning)
+user_analytics = {
+    "_id": "user_id",
+    "goal_completion_rate": 0.75,
+    "average_task_completion": 0.8,
+    "streak_records": {
+        "current_streak": 5,
+        "longest_streak": 12,
+        "streak_start_date": "2025-06-20"
+    },
+    "common_obstacles": {
+        "time_management": 15,  # frequency count
+        "motivation": 8,
+        "work_pressure": 12
+    },
+    "best_performing_times": [
+        "08:00",
+        "20:00"
+    ],
+    "task_difficulty_trends": {
+        "task_1": {
+            "avg_difficulty": 2.5,
+            "completion_rate": 0.9
+        },
+        "task_2": {
+            "avg_difficulty": 3.2,
+            "completion_rate": 0.7
+        }
+    },
+    "last_updated": "2025-06-28T20:00:00Z"
+}
+
+## 5. Conversation Context Collection (additional to your existing chat memory)
+conversation_context = {
+    "_id": "user_id",
+    "current_conversation_phase": "goal_setting",  # goal_setting, daily_tracking, obstacle_solving
+    "pending_actions": [
+        {
+            "action": "confirm_goal_breakdown",
+            "context": "User needs to approve daily tasks before activation",
+            "created_at": "2025-06-28T10:00:00Z"
+        }
+    ],
+    "last_interaction": "2025-06-28T20:00:00Z",
+    "interaction_count": 15,
+    "relationship_stage": "established"  # new, building, established, close
+}

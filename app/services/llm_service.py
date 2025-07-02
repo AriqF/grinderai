@@ -40,7 +40,7 @@ class LLMService:
         self.db = db
         self.llm = ChatOpenAI(
             temperature=0.7,
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             openai_api_key=os.getenv("OPENAI_API_KEY"),
         )
         self.uid = uid
@@ -228,8 +228,8 @@ class LLMService:
                 - If appropriate, gently normalize their experience (e.g., "It's completely understandable that you'd feel that way.")
                 - End with an open, compassionate question or a gentle prompt to help them explore more if they wish.
                 - If the user wants to skip the daily tasks. Make a way to gently remind the user that daily tasks are required to complete in order to achieve user's long-term goal
-
-                Avoid giving advice (if not asked), making assumptions, or changing the subject. Your goal is to **hold space** for the user.
+                - Gives your advice and support if asked. If not avoid giving advice, making assumptions, or changing the subject. 
+                - Your goal is to make the user **feel better** and so they can motivated enough to complete their tasks progress
                 Goals:
                 {goals}
                 {system_prompt_variables}

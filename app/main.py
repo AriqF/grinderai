@@ -17,6 +17,7 @@ from app.utils.scheduler import (
     analyze_daily_sentiment,
 )
 import pytz
+from app.utils.bot_handler import router
 
 load_dotenv()
 
@@ -26,6 +27,7 @@ scheduler = AsyncIOScheduler()
 # Register routers
 app.include_router(user_router.router, prefix="/users", tags=["Users"])
 app.include_router(goal_router.router, prefix="/goals", tags=["Goals"])
+app.include_router(router)
 
 
 @app.on_event("startup")
@@ -36,14 +38,14 @@ async def startup_event():
     # scheduler.add_job(test_cron_job, CronTrigger(second="*/10"))
     scheduler.add_job(remind_user_tasks, CronTrigger(hour=6, timezone=tz))
     scheduler.add_job(remind_user_tasks, CronTrigger(hour=20, timezone=tz))
-    scheduler.add_job(remind_user_tasks, CronTrigger(hour=9, minute=55, timezone=tz))
+    # scheduler.add_job(remind_user_tasks, CronTrigger(hour=9, minute=55, timezone=tz))
     scheduler.add_job(remind_user_tasks, CronTrigger(hour=12, timezone=tz))
     # scheduler.add_job(remind_user_tasks, CronTrigger(minute="*/1", timezone=tz))
     scheduler.add_job(
         daily_progress_creation,
         CronTrigger(hour=0, timezone=tz),
     )
-    scheduler.add_job(ask_daily_share, CronTrigger(hour=20, minute=15, timezone=tz))
+    scheduler.add_job(ask_daily_share, CronTrigger(hour=20, minute=00, timezone=tz))
     scheduler.add_job(
         analyze_daily_sentiment, CronTrigger(hour=1, minute=30, timezone=tz)
     )

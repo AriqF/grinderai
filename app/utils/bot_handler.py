@@ -1,5 +1,6 @@
+from http import HTTPStatus
 import os
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, Response
 from telegram import Update, Bot
 from telegram.ext import (
     Application,
@@ -30,8 +31,8 @@ ENABLE_WEBHOOK = os.getenv("ENABLE_WEBHOOK", "false").lower() == "true"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 
 # Initialize bot and app
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
 app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+bot = app.bot
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -155,22 +156,28 @@ async def telegram_webhook(
 ):
     try:
         json_data = await request.json()
-        update = Update.de_json(json_data, bot)
+        update = Update.de_json(data=json_data, bot=bot)
         await app.process_update(update)
-        return {"status": "ok"}
+        return Response(status_code=HTTPStatus.OK)
     except Exception as e:
+        print("WEBHOOK_ERR")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # Run polling or set webhook (to be called from main.py)
 async def configure_bot():
-    if ENABLE_WEBHOOK:
-        if not WEBHOOK_URL:
-            raise RuntimeError("WEBHOOK_URL must be set if ENABLE_WEBHOOK is true")
-        await bot.set_webhook(f"{WEBHOOK_URL}/webhook")
-        print("[BOT] Webhook has been set.")
-    else:
-        print("[BOT] Running in polling mode...")
-        await app.initialize()
-        await app.start()
-        await app.updater.start_polling()
+    try:
+        if ENABLE_WEBHOOK:
+            if not WEBHOOK_URL:
+                raise RuntimeError("WEBHOOK_URL must be set if ENABLE_WEBHOOK is true")
+            await app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
+            await app.start()
+            print("[BOT] Webhook has been set.")
+        else:
+            print("[BOT] Running in polling mode...")
+            await app.initialize()
+            await app.start()
+            await app.updater.start_polling()
+    except Exception as e:
+        print("CONFIGURE_BOT_ERR", e)
+        raise ValueError(e)

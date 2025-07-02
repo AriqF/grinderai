@@ -170,6 +170,7 @@ async def configure_bot():
         if ENABLE_WEBHOOK:
             if not WEBHOOK_URL:
                 raise RuntimeError("WEBHOOK_URL must be set if ENABLE_WEBHOOK is true")
+            await app.initialize()
             await app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
             await app.start()
             print("[BOT] Webhook has been set.")

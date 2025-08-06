@@ -22,6 +22,7 @@ from app.services.mongo_memory import ChatMemory
 from app.services.goals_service import UserGoalService
 import asyncio
 import textwrap
+from app.services.rune_service import RuneChatbotService
 
 load_dotenv()
 
@@ -57,8 +58,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text
     user = update.effective_user
     db = await get_database()
-    llm_service = LLMService(db, user.id)
-    response = await llm_service.reply_user_message(user, user_input)
+    # llm_service = LLMService(db, user.id)
+    # response = await llm_service.reply_user_message(user, user_input)
+    rune_service = RuneChatbotService(db)
+    response = await rune_service.handle_message(user, user_input)
     await update.message.reply_text(response, parse_mode="Markdown")
 
 
